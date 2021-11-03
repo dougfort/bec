@@ -1,0 +1,2 @@
+# bec
+Byzantine Eventual Consistency
