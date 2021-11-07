@@ -6,8 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1"
 sha2 = "0.9"
 rand = "0.7"
 getrandom = "0.2"
 ed25519-dalek = "1"
 x25519-dalek = "1"
+thiserror = "1"

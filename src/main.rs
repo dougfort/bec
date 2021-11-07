@@ -1,6 +1,11 @@
+use anyhow::Result;
+
 mod message;
 mod payload;
+mod graph;
 
-fn main() {
+fn main() -> Result<()> {
     println!("Hello, world!");
+    
+    Ok(())
 }

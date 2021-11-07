@@ -1,6 +1,15 @@
+use thiserror::Error;
 use std::collections::HashSet;
 use sha2::{Sha256, Digest};
-use ed25519_dalek::Signer;
+use ed25519_dalek::{Signer, Verifier};
+use ed25519_dalek::ed25519::signature::Signature;
+
+#[derive(Error, Debug)]
+pub enum MessageError {
+
+    #[error("verify error")]
+    VerifyError(#[from] ed25519_dalek::ed25519::Error)
+}
 
 // Message digest; cryptographic hash of (𝑣, hs, sig)
 pub type MDigest = [u8; 32];
@@ -20,7 +29,7 @@ impl Message {
     pub fn from_pred(
         pred: &Message,
         v: Vec::<u8>, 
-        keypair: ed25519_dalek::Keypair,
+        keypair: &ed25519_dalek::Keypair,
     ) -> Self {
         // hs for the new message is the the predecessor's hs plus
         // the predecessor's digest
@@ -29,11 +38,7 @@ impl Message {
         hs.insert(pred_digest);
 
         // sig is a digital signature over (𝑣, hs) using the sender’s private key
-        let mut data = Vec::<u8>::new();
-        data.extend_from_slice(&v);
-        for h in hs.iter() {
-            data.extend_from_slice(h);
-        }
+        let data = data_to_sign(&v, &hs);
         let sig = keypair.sign(&data).to_bytes();
 
         Message { v, hs, sig }
@@ -56,6 +61,7 @@ impl Message {
 
     /// compute the digest (cryptographic hash) of this nessage
     pub fn digest(&self) -> MDigest {
+        // TODO: #1 cash digest value: it's not going to change
         let mut hasher  = Sha256::new();
         hasher.update(self.v.clone());
         for h in self.hs.iter() {
@@ -66,6 +72,23 @@ impl Message {
         // we use unwrap here because the hash is [u8, 32] just like MDigest
         hasher.finalize().as_slice().try_into().unwrap()
     }
+
+    fn verify(&self, public_key: ed25519_dalek::PublicKey) -> Result<(), MessageError> {
+        let data = data_to_sign(&self.v, &self.hs);
+        let sig = ed25519_dalek::Signature::from_bytes(&self.sig)?; 
+        public_key.verify(&data, &sig)?;
+
+        Ok(())
+    }
+}
+
+fn data_to_sign(v: &[u8], hs: &HashSet::<MDigest>) -> Vec::<u8> {
+    let mut data = Vec::<u8>::new();
+    data.extend_from_slice(v);
+    for h in hs.iter() {
+        data.extend_from_slice(h);
+    }
+    data
 }
 
 /// This creates the root message
@@ -99,7 +122,7 @@ mod tests {
         let v = payload::generate(2048);
         let keypair = ed25519_dalek::Keypair::generate(&mut rand_generator);
     
-        let m = Message::from_pred(&pred, v, keypair);
+        let m = Message::from_pred(&pred, v, &keypair);
         assert!(!m.is_root());
 
         assert!(pred.is_predecessor_of(&m));
@@ -110,5 +133,7 @@ mod tests {
         // the message should be neither predecessor nor successor of itself
         assert!(!m.is_predecessor_of(&m));
         assert!(!m.is_successor_of(&m));
+
+        assert!(m.verify(keypair.public).is_ok())
     }
 }
