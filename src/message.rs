@@ -1,14 +1,19 @@
-use thiserror::Error;
-use std::collections::HashSet;
-use sha2::{Sha256, Digest};
-use ed25519_dalek::{Signer, Verifier};
 use ed25519_dalek::ed25519::signature::Signature;
+use ed25519_dalek::{Signer, Verifier};
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum MessageError {
-
     #[error("verify error")]
-    VerifyError(#[from] ed25519_dalek::ed25519::Error)
+    VerifyError(#[from] ed25519_dalek::ed25519::Error),
+}
+
+/// create a randomly generated ed25519_dalek::Keypair
+pub fn create_random_keypair() -> ed25519_dalek::Keypair {
+    let mut rand_generator = rand::rngs::OsRng {};
+    ed25519_dalek::Keypair::generate(&mut rand_generator)
 }
 
 // Message digest; cryptographic hash of (𝑣, hs, sig)
@@ -17,36 +22,21 @@ pub type MDigest = [u8; 32];
 /// M is a set of triples (𝑣, hs, sig), where 𝑣 is any value, sig is a digital
 /// signature over (𝑣, hs) using the sender’s private key, and hs is a
 /// set of hashes produced by a cryptographic hash function 𝐻 (·).
+#[derive(Debug, Clone)]
 pub struct Message {
-    pub v: Vec::<u8>,
-    pub hs: HashSet::<MDigest>,
+    pub v: Vec<u8>,
+    pub hs: HashSet<MDigest>,
     pub sig: [u8; 64],
 }
 
 impl Message {
-
-    /// create a new message from its predecessor
-    pub fn from_pred(
-        pred: &Message,
-        v: Vec::<u8>, 
-        keypair: &ed25519_dalek::Keypair,
-    ) -> Self {
-        // hs for the new message is the the predecessor's hs plus
-        // the predecessor's digest
-        let mut hs = pred.hs.clone();
-        let pred_digest = pred.digest();
-        hs.insert(pred_digest);
-
+    /// create a new message as successor to the local heads
+    pub fn from_heads(hs: HashSet<MDigest>, v: Vec<u8>, keypair: &ed25519_dalek::Keypair) -> Self {
         // sig is a digital signature over (𝑣, hs) using the sender’s private key
         let data = data_to_sign(&v, &hs);
         let sig = keypair.sign(&data).to_bytes();
 
         Message { v, hs, sig }
-    }
-
-    /// this is the root node, it has no predecessor
-    pub fn is_root(&self) -> bool {
-        self.hs.is_empty()
     }
 
     /// self is a predecessor of m if m.hs contains the digest of self
@@ -61,8 +51,8 @@ impl Message {
 
     /// compute the digest (cryptographic hash) of this nessage
     pub fn digest(&self) -> MDigest {
-        // TODO: #1 cash digest value: it's not going to change
-        let mut hasher  = Sha256::new();
+        // TODO: #1 cache digest value: it's not going to change
+        let mut hasher = Sha256::new();
         hasher.update(self.v.clone());
         for h in self.hs.iter() {
             hasher.update(h);
@@ -73,16 +63,16 @@ impl Message {
         hasher.finalize().as_slice().try_into().unwrap()
     }
 
-    fn verify(&self, public_key: ed25519_dalek::PublicKey) -> Result<(), MessageError> {
+    pub fn verify(&self, public_key: ed25519_dalek::PublicKey) -> Result<(), MessageError> {
         let data = data_to_sign(&self.v, &self.hs);
-        let sig = ed25519_dalek::Signature::from_bytes(&self.sig)?; 
+        let sig = ed25519_dalek::Signature::from_bytes(&self.sig)?;
         public_key.verify(&data, &sig)?;
 
         Ok(())
     }
 }
 
-fn data_to_sign(v: &[u8], hs: &HashSet::<MDigest>) -> Vec::<u8> {
+fn data_to_sign(v: &[u8], hs: &HashSet<MDigest>) -> Vec<u8> {
     let mut data = Vec::<u8>::new();
     data.extend_from_slice(v);
     for h in hs.iter() {
@@ -91,44 +81,19 @@ fn data_to_sign(v: &[u8], hs: &HashSet::<MDigest>) -> Vec::<u8> {
     data
 }
 
-/// This creates the root message
-impl Default for Message {
-
-    fn default() -> Self {
-        Message{
-            v: Vec::new(),
-            hs: HashSet::new(),
-            sig: [0; 64], 
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;   
-    use crate::payload; 
+    use super::*;
+    use crate::payload;
 
     #[test]
-    fn can_create_root() {
-        let r: Message = Default::default();
-        assert!(r.is_root())
-    }
+    fn can_create_message_from_heads() {
 
-    #[test]
-    fn can_create_message_from_predecessor() {
-        let mut rand_generator = rand::rngs::OsRng {};
-
-        let pred: Message = Default::default();
+        let hs = HashSet::new();
         let v = payload::generate(2048);
-        let keypair = ed25519_dalek::Keypair::generate(&mut rand_generator);
-    
-        let m = Message::from_pred(&pred, v, &keypair);
-        assert!(!m.is_root());
+        let keypair = create_random_keypair();
 
-        assert!(pred.is_predecessor_of(&m));
-        assert!(!pred.is_successor_of(&m));
-        assert!(m.is_successor_of(&pred));
-        assert!(!m.is_predecessor_of(&pred));
+        let m = Message::from_heads(hs, v, &keypair);
 
         // the message should be neither predecessor nor successor of itself
         assert!(!m.is_predecessor_of(&m));
