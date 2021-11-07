@@ -134,6 +134,11 @@ mod tests {
         assert!(!m.is_predecessor_of(&m));
         assert!(!m.is_successor_of(&m));
 
-        assert!(m.verify(keypair.public).is_ok())
+        assert!(m.verify(keypair.public).is_ok());
+
+        // veify should fail if we change the data
+        let mut m1 = m;
+        m1.v[0] += 1;
+        assert!(m1.verify(keypair.public).is_err());
     }
 }
