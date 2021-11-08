@@ -78,7 +78,7 @@ fn data_to_sign(v: &[u8], hs: &HashSet<MDigest>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actors;
+    use crate::replica;
     use crate::payload;
 
     #[test]
@@ -86,7 +86,7 @@ mod tests {
 
         let hs = HashSet::new();
         let v = payload::generate(2048);
-        let keypair = actors::create_random_keypair();
+        let keypair = replica::create_random_keypair();
 
         let m = Message::from_heads(hs, v, &keypair);
 
