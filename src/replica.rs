@@ -22,6 +22,7 @@ pub fn create_replicas(count: usize) -> Vec::<Replica> {
             public_keys: HashMap::new(),
         };
         public_keys.insert(replica.id, replica.keypair.public);
+        replicas.push(replica);
     }
     
     for replica in replicas.iter_mut() {
@@ -37,3 +38,23 @@ pub fn create_random_keypair() -> ed25519_dalek::Keypair {
     ed25519_dalek::Keypair::generate(&mut rand_generator)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_create_replicas() {
+        let rs = create_replicas(0);
+        assert!(rs.is_empty());
+
+        let rs = create_replicas(1);
+        assert_eq!(rs.len(), 1);
+
+        let rs = create_replicas(2);
+        assert_eq!(rs.len(), 2);
+
+        assert!(rs[0].public_keys.get(&rs[1].id).is_some());
+        assert!(rs[1].public_keys.get(&rs[0].id).is_some());
+    }
+
+}
