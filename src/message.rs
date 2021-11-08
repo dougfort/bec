@@ -10,12 +10,6 @@ pub enum MessageError {
     VerifyError(#[from] ed25519_dalek::ed25519::Error),
 }
 
-/// create a randomly generated ed25519_dalek::Keypair
-pub fn create_random_keypair() -> ed25519_dalek::Keypair {
-    let mut rand_generator = rand::rngs::OsRng {};
-    ed25519_dalek::Keypair::generate(&mut rand_generator)
-}
-
 // Message digest; cryptographic hash of (𝑣, hs, sig)
 pub type MDigest = [u8; 32];
 
@@ -84,6 +78,7 @@ fn data_to_sign(v: &[u8], hs: &HashSet<MDigest>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actors;
     use crate::payload;
 
     #[test]
@@ -91,7 +86,7 @@ mod tests {
 
         let hs = HashSet::new();
         let v = payload::generate(2048);
-        let keypair = create_random_keypair();
+        let keypair = actors::create_random_keypair();
 
         let m = Message::from_heads(hs, v, &keypair);
 

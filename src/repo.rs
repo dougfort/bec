@@ -1,4 +1,4 @@
-use crate::message::{MDigest, Message, create_random_keypair};
+use crate::message::{MDigest, Message};
 use std::collections::{HashMap, HashSet};
 
 pub struct MessageRepo {
@@ -34,6 +34,7 @@ impl MessageRepo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actors;
     use crate::payload;
 
     #[test]
@@ -45,7 +46,7 @@ mod tests {
     fn can_create_messages() {
         let mut mr = MessageRepo::new();
 
-        let keypair = create_random_keypair();
+        let keypair = actors::create_random_keypair();
 
         let m1data = payload::generate(2048);
         let m1d = mr.create_message(m1data, &keypair);
